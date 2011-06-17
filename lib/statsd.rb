@@ -33,14 +33,14 @@ class Statsd
   # @param [Integer] count count
   # @param [Integer] sample_rate sample rate, 1 for always
   def count(stat, count, sample_rate=1)
-    send stat, count, 'c', sample_rate
+    send_stats stat, count, 'c', sample_rate
   end
 
   # @param [String] stat stat name
   # @param [Integer] ms timing in milliseconds
   # @param [Integer] sample_rate sample rate, 1 for always
   def timing(stat, ms, sample_rate=1)
-    send stat, ms, 'ms', sample_rate
+    send_stats stat, ms, 'ms', sample_rate
   end
 
   def time(stat, sample_rate=1)
@@ -56,7 +56,7 @@ class Statsd
     yield unless sample_rate < 1 and rand > sample_rate
   end
 
-  def send(stat, delta, type, sample_rate)
+  def send_stats(stat, delta, type, sample_rate)
     prefix = "#{@namespace}." unless @namespace.nil?
     sampled(sample_rate) { socket.send("#{prefix}#{stat}:#{delta}|#{type}#{'|@' << sample_rate.to_s if sample_rate < 1}", 0, @host, @port) }
   end
