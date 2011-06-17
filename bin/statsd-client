@@ -1,0 +1,127 @@
+#!/usr/bin/env ruby
+begin
+  require 'statsd/client'
+rescue LoadError
+end
+
+unless defined?(Statsd::Client)
+  $:.unshift File.expand_path('../../lib', __FILE__)
+  require 'statsd/client'
+end
+
+require 'optparse'
+require 'pp'
+
+module Statsd
+  class CLI
+
+    def self.commands_arities
+      @commands_arities ||= {}
+    end
+
+    def self.valid_commands
+      commands_arities.keys
+    end
+
+    def self.command(command_name, arity)
+      commands_arities[command_name.to_s] = arity
+    end
+
+    command :increment, 0
+    command :decrement, 0
+    command :count,  1
+    command :timing, 1
+
+    def initialize(argv)
+      @argv = argv
+      @config = {:host => 'localhost', :port => 3344}
+    end
+
+    def opt_parser
+      config, cli = @config, self # closure lulz
+      @opt_parser ||= OptionParser.new do |o|
+        o.banner = ""
+        o.on('-H', '--host HOST', "Hostname or IP of the host running statsd") do |h|
+          config[:host] = h
+        end
+        o.on("-P", "--port PORT", "Port that statsd is listening on") do |p|
+          config[:port] = p
+        end
+        o.on("-h", "--help", "print this message") do
+          cli.usage!
+        end
+      end
+    end
+
+    def run
+      usage! if @argv.empty?
+      remaining_args = opt_parser.parse(@argv)
+      unless valid_command?(remaining_args.first)
+        puts "Unrecognized operation: #{remaining_args.first}"
+        usage!
+      end
+      execute(*remaining_args)
+    end
+
+    def execute(command, *args)
+      expected_args = self.class.commands_arities[command] + 1
+      unless args.size == expected_args
+        puts "Operation #{command} takes #{expected_args} arguments, you gave: #{args.map{|a| "'#{a}'"}.join(' ')}"
+        exit(2)
+      end
+      client.send(command.to_s, *args)
+      puts "#{command} #{args.join(' ')} written to statsd://#{host}:#{port}"
+    end
+
+    def client
+      Statsd::Client.new(host, port)
+    end
+
+    def host
+      @config[:host]
+    end
+
+    def port
+      @config[:port]
+    end
+
+    def valid_command?(command)
+      self.class.valid_commands.include?(command)
+    end
+
+    def usage!
+      puts(<<-HELP)
+USAGE: statsd-client [options] OPERATION KEY [VALUE]
+
+Operations:
+* increment   : Increment a counter on the statsd daemon
+* decrement   : Decrement a counter on the statsd deamon
+* count COUNT : Send an instantaneous measurement to statsd
+* timing TIME : Send a timer value (in ms) to statsd
+
+Options:#{opt_parser}
+
+Examples:
+
+# Increment a value
+>  statsd-client application.requests increment
+
+# Decrement a value
+>  statsd-client application.active_background_jobs decrement
+
+# Report an instantaneous value
+>  statsd-client application.number_of_sweet_graphs 9000
+
+# Report a timing measurement
+>  statsd-client application.upstream_service_response_time timing 50
+
+HELP
+      exit(1)
+    end
+
+  end
+end
+
+
+Statsd::CLI.new(ARGV.dup).run
+
