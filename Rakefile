@@ -34,5 +34,9 @@ end
 
 task :default => :spec
 
-require 'yard'
-YARD::Rake::YardocTask.new
+begin
+  require 'yard'
+  YARD::Rake::YardocTask.new
+rescue LoadError
+  # TODO: provide a fake version of yard's task that aborts with a friendly message.
+end
