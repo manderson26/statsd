@@ -18,13 +18,14 @@ Jeweler::Tasks.new do |gem|
 end
 Jeweler::RubygemsDotOrgTasks.new
 
-require 'rake/testtask'
-Rake::TestTask.new(:spec) do |spec|
-  spec.libs << 'lib' << 'spec'
-  spec.pattern = 'spec/**/*_spec.rb'
-  spec.verbose = true
+begin
+  require 'rspec/core/rake_task'
+  RSpec::Core::RakeTask.new
+rescue LoadError
+  task :spec do
+    abort "install rspec to run the tests"
+  end
 end
-
 require 'rcov/rcovtask'
 Rcov::RcovTask.new do |spec|
   spec.libs << 'lib' << 'spec'
