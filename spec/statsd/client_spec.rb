@@ -1,90 +1,90 @@
 require 'helper'
 
-describe Statsd do
+describe Statsd::Client do
   before do
-    @statsd = Statsd.new('localhost', 1234)
-    class << @statsd
+    @client = Statsd::Client.new('localhost', 1234)
+    class << @client
       public :sampled # we need to test this
       attr_reader :host, :port # we also need to test this
       def socket; @socket ||= FakeUDPSocket.new end
     end
   end
 
-  after { @statsd.socket.clear }
+  after { @client.socket.clear }
 
   describe "#initialize" do
     it "should set the host and port" do
-      @statsd.host.should == 'localhost'
-      @statsd.port.should == 1234
+      @client.host.should == 'localhost'
+      @client.port.should == 1234
     end
 
     it "should default the port to 8125" do
-      Statsd.new('localhost').instance_variable_get('@port').should == 8125
+      Statsd::Client.new('localhost').instance_variable_get('@port').should == 8125
     end
   end
 
   describe "#increment" do
     it "should format the message according to the statsd spec" do
-      @statsd.increment('foobar')
-      @statsd.socket.recv.should == ['foobar:1|c']
+      @client.increment('foobar')
+      @client.socket.recv.should == ['foobar:1|c']
     end
 
     describe "with a sample rate" do
-      before { class << @statsd; def rand; 0; end; end } # ensure delivery
+      before { class << @client; def rand; 0; end; end } # ensure delivery
       it "should format the message according to the statsd spec" do
-        @statsd.increment('foobar', 0.5)
-        @statsd.socket.recv.should == ['foobar:1|c|@0.5']
+        @client.increment('foobar', 0.5)
+        @client.socket.recv.should == ['foobar:1|c|@0.5']
       end
     end
   end
 
   describe "#decrement" do
     it "should format the message according to the statsd spec" do
-      @statsd.decrement('foobar')
-      @statsd.socket.recv.should == ['foobar:-1|c']
+      @client.decrement('foobar')
+      @client.socket.recv.should == ['foobar:-1|c']
     end
 
     describe "with a sample rate" do
-      before { class << @statsd; def rand; 0; end; end } # ensure delivery
+      before { class << @client; def rand; 0; end; end } # ensure delivery
       it "should format the message according to the statsd spec" do
-        @statsd.decrement('foobar', 0.5)
-        @statsd.socket.recv.should == ['foobar:-1|c|@0.5']
+        @client.decrement('foobar', 0.5)
+        @client.socket.recv.should == ['foobar:-1|c|@0.5']
       end
     end
   end
 
   describe "#timing" do
     it "should format the message according to the statsd spec" do
-      @statsd.timing('foobar', 500)
-      @statsd.socket.recv.should == ['foobar:500|ms']
+      @client.timing('foobar', 500)
+      @client.socket.recv.should == ['foobar:500|ms']
     end
 
     describe "with a sample rate" do
-      before { class << @statsd; def rand; 0; end; end } # ensure delivery
+      before { class << @client; def rand; 0; end; end } # ensure delivery
       it "should format the message according to the statsd spec" do
-        @statsd.timing('foobar', 500, 0.5)
-        @statsd.socket.recv.should == ['foobar:500|ms|@0.5']
+        @client.timing('foobar', 500, 0.5)
+        @client.socket.recv.should == ['foobar:500|ms|@0.5']
       end
     end
   end
 
   describe "#time" do
     it "should format the message according to the statsd spec" do
-      @statsd.time('foobar') { sleep(0.001); 'test' }
-      @statsd.socket.recv.should == ['foobar:1|ms']
+      @client.time('foobar') { sleep(0.001); 'test' }
+      @client.socket.recv.should == ['foobar:1|ms']
     end
 
     it "should return the result of the block" do
-      result = @statsd.time('foobar') { sleep(0.001); 'test' }
+      result = @client.time('foobar') { sleep(0.001); 'test' }
       result.should == 'test'
     end
 
     describe "with a sample rate" do
-      before { class << @statsd; def rand; 0; end; end } # ensure delivery
+      before { class << @client; def rand; 0; end; end } # ensure delivery
 
       it "should format the message according to the statsd spec" do
-        result = @statsd.time('foobar', 0.5) { sleep(0.001); 'test' }
-        @statsd.socket.recv.should == ['foobar:1|ms|@0.5']
+        result = @client.time('foobar', 0.5) { sleep(0.001); 'test' }
+        @client.socket.recv.should == ['foobar:1|ms|@0.5']
       end
     end
   end
@@ -92,48 +92,48 @@ describe Statsd do
   describe "#sampled" do
     describe "when the sample rate is 1" do
       it "should yield" do
-        @statsd.sampled(1) { :yielded }.should == :yielded
+        @client.sampled(1) { :yielded }.should == :yielded
       end
     end
 
     describe "when the sample rate is greater than a random value [0,1]" do
-      before { class << @statsd; def rand; 0; end; end } # ensure delivery
+      before { class << @client; def rand; 0; end; end } # ensure delivery
       it "should yield" do
-        @statsd.sampled(0.5) { :yielded }.should == :yielded
+        @client.sampled(0.5) { :yielded }.should == :yielded
       end
     end
 
     describe "when the sample rate is less than a random value [0,1]" do
-      before { class << @statsd; def rand; 1; end; end } # ensure no delivery
+      before { class << @client; def rand; 1; end; end } # ensure no delivery
       it "should not yield" do
-        @statsd.sampled(0.5) { :yielded }.should == nil
+        @client.sampled(0.5) { :yielded }.should == nil
       end
     end
 
     describe "when the sample rate is equal to a random value [0,1]" do
-      before { class << @statsd; def rand; 0.5; end; end } # ensure delivery
+      before { class << @client; def rand; 0.5; end; end } # ensure delivery
       it "should yield" do
-        @statsd.sampled(0.5) { :yielded }.should == :yielded
+        @client.sampled(0.5) { :yielded }.should == :yielded
       end
     end
   end
 
   describe "with namespace" do
-    before { @statsd.namespace = 'service' }
+    before { @client.namespace = 'service' }
 
     it "should add namespace to increment" do
-      @statsd.increment('foobar')
-      @statsd.socket.recv.should == ['service.foobar:1|c']
+      @client.increment('foobar')
+      @client.socket.recv.should == ['service.foobar:1|c']
     end
 
     it "should add namespace to decrement" do
-      @statsd.decrement('foobar')
-      @statsd.socket.recv.should == ['service.foobar:-1|c']
+      @client.decrement('foobar')
+      @client.socket.recv.should == ['service.foobar:-1|c']
     end
 
     it "should add namespace to timing" do
-      @statsd.timing('foobar', 500)
-      @statsd.socket.recv.should == ['service.foobar:500|ms']
+      @client.timing('foobar', 500)
+      @client.socket.recv.should == ['service.foobar:500|ms']
     end
   end
 end
@@ -145,10 +145,10 @@ describe Statsd do
       host, port = 'localhost', 12345
       socket.bind(host, port)
 
-      statsd = Statsd.new(host, port)
+      statsd = Statsd::Client.new(host, port)
       statsd.increment('foobar')
       message = socket.recvfrom(16).first
       message.should == 'foobar:1|c'
     end
   end
-end if ENV['LIVE']
+end
