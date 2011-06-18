@@ -1,43 +1,41 @@
-require 'rubygems'
-require 'rake'
+begin
+  require 'rubygems'
+  require 'rubygems/package_task'
 
-require 'jeweler'
-Jeweler::Tasks.new do |gem|
-  # gem is a Gem::Specification... see http://docs.rubygems.org/read/chapter/20 for more options
-  gem.name = "statsd"
-  gem.homepage = "http://github.com/reinh/statsd"
-  gem.license = "MIT"
-  gem.summary = %Q{A Statsd client in Ruby}
-  gem.description = %Q{A Statsd client in Ruby}
-  gem.email = "rein@phpfog.com"
-  gem.authors = ["Rein Henrichs"]
-  gem.add_development_dependency "minitest", ">= 0"
-  gem.add_development_dependency "yard", "~> 0.6.0"
-  gem.add_development_dependency "jeweler", "~> 1.5.2"
-  gem.add_development_dependency "rcov", ">= 0"
+  spec = eval(File.read("statsd.gemspec"), nil, 'statsd.gemspec')
+
+  Gem::PackageTask.new(spec).define
+rescue LoadError
+  desc "You gotta have rubygems to make the gem"
+  task(:gem) { abort "install rubygems to build this gem"}
 end
-Jeweler::RubygemsDotOrgTasks.new
 
 begin
   require 'rspec/core/rake_task'
   RSpec::Core::RakeTask.new
 rescue LoadError
-  task :spec do
-    abort "install rspec to run the tests"
-  end
+  desc "install rspec to run tests"
+  task(:spec) { abort "install rspec to run the tests" }
 end
-require 'rcov/rcovtask'
-Rcov::RcovTask.new do |spec|
-  spec.libs << 'lib' << 'spec'
-  spec.pattern = 'spec/**/*_spec.rb'
-  spec.verbose = true
-end
-
 task :default => :spec
+
+begin
+  require 'rcov/rcovtask'
+  Rcov::RcovTask.new do |spec|
+    spec.libs << 'lib' << 'spec'
+    spec.pattern = 'spec/**/*_spec.rb'
+    spec.verbose = true
+  end
+rescue LoadError
+  desc "install rcov to generate test coverage reports"
+  task(:rcov) { abort "install rcov to analyze test coverage"}
+end
 
 begin
   require 'yard'
   YARD::Rake::YardocTask.new
 rescue LoadError
-  # TODO: provide a fake version of yard's task that aborts with a friendly message.
+  desc "install yard to generate documentation"
+  task(:yard) { abort "install yard to generate docs"}
 end
+
