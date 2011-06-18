@@ -1,3 +1,4 @@
+require 'statsd/client'
 module Statsd
   #==Statsd::Middleware
   # Rack middleware for collecting metrics via statsd.
@@ -80,7 +81,7 @@ module Statsd
     end
 
     def each_namespace_with(sub_namespace)
-      @namepace.each {|n| yield "#{n}.#{sub_namespace}"}
+      @namespace.each {|n| yield "#{n}.#{sub_namespace}"}
     end
 
   end
