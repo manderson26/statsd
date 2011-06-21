@@ -34,8 +34,8 @@ module Logger
         o.on("-P", "--port PORT", "Port that statsd is listening on") do |p|
           config[:port] = p
         end
-        o.on("-r", "--rate RATE", "Sample rate in seconds") do |r|
-          config[:port] = r
+        o.on("-i", "--interval INTERVAL", "Sample interval in seconds") do |i|
+          config[:interval] = i
         end
         o.on("-h", "--help", "print this message") do
           cli.usage!
@@ -45,9 +45,14 @@ module Logger
 
     def run
       self.client = Statsd::Client.new(host)
-      parse_proc_stat
-      parse_proc_meminfo
-      parse_proc_diskstats
+      while(1) do
+        parse_proc_stat
+        parse_proc_meminfo
+        parse_proc_diskstats
+        # this isn't right; since collection of the above stats takes time we will run slow.
+        sleep(config[:interval])
+      end
+
     end
 
     def host
