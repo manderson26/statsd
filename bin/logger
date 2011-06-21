@@ -1,0 +1,261 @@
+#!/usr/bin/env ruby
+begin 
+  require 'statsd/client'
+rescue LoadError
+end
+
+unless defined?(Statsd::Client)
+  $:.unshift File.expand_path('../../lib', __FILE__)
+  require 'statsd/client'
+end
+
+require 'rubygems'
+require 'json'
+
+require 'optparse'
+require 'pp'
+
+
+module Logger
+  class CLI
+    
+    def initialize(argv)
+      @argv = argv
+      @config = {:host => 'localhost', :port => 3344}
+    end
+    
+    def opt_parser
+      config, cli = @config, self # closure lulz
+      @opt_parser ||= OptionParser.new do |o|
+        o.banner = ""
+        o.on('-H', '--host HOST', "Hostname or IP of the host running statsd") do |h|
+          config[:host] = h
+        end
+        o.on("-P", "--port PORT", "Port that statsd is listening on") do |p|
+          config[:port] = p
+        end
+        o.on("-r", "--rate RATE", "Sample rate in seconds") do |r|
+          config[:port] = r
+        end
+        o.on("-h", "--help", "print this message") do
+          cli.usage!
+        end
+      end
+    end
+
+    def run
+      self.client = Statsd::Client.new(host)
+      parse_proc_stat
+      parse_proc_meminfo
+      parse_proc_diskstats
+    end
+
+    def host
+      @config[:host]
+    end
+    
+    def port
+      @config[:port]
+    end
+
+    def log_stat(command, *args)
+      client.send(command, *args)
+      puts "#{command} #{args.join(' ')}"
+    end
+
+    def parse_proc_type_1(data)
+      #  puts "Starting"
+      parsed = {}
+      data.each_line do |line|
+        fields = line.chomp.split(' ')
+        title,rest = fields.slice!(0, 1)
+        title.gsub!(/\:/,'')
+        parsed[title] = fields.map { |x| x=~/^\d*$/ ? x.to_i : x }    
+      end
+      parsed
+    end 
+
+    #
+    # iostats format
+    # Field  1 -- # of reads issued
+    #     This is the total number of reads completed successfully.
+    # Field  2 -- # of reads merged, field 6 -- # of writes merged
+    #     Reads and writes which are adjacent to each other may be merged for
+    #     efficiency.  Thus two 4K reads may become one 8K read before it is
+    #     ultimately handed to the disk, and so it will be counted (and queued)
+    #     as only one I/O.  This field lets you know how often this was done.
+    # Field  3 -- # of sectors read
+    #     This is the total number of sectors read successfully.
+    #Field  4 -- # of milliseconds spent reading
+    #     This is the total number of milliseconds spent by all reads (as
+    #     measured from __make_request() to end_that_request_last()).
+    # Field  5 -- # of writes completed
+    #     This is the total number of writes completed successfully.
+    # Field  7 -- # of sectors written
+    #     This is the total number of sectors written successfully.
+    # Field  8 -- # of milliseconds spent writing
+    #     This is the total number of milliseconds spent by all writes (as
+    #     measured from __make_request() to end_that_request_last()).
+    # Field  9 -- # of I/Os currently in progress
+    #     The only field that should go to zero. Incremented as requests are
+    #     given to appropriate struct request_queue and decremented as they finish.
+    # Field 10 -- # of milliseconds spent doing I/Os
+    #     This field is increases so long as field 9 is nonzero.
+    # Field 11 -- weighted # of milliseconds spent doing I/Os
+    #     This field is incremented at each I/O start, I/O completion, I/O
+    #     merge, or read of these stats by the number of I/Os in progress
+    #    (field 9) times the number of milliseconds spent doing I/O since the
+    #    last update of this field.  This can provide an easy measure of both
+    #    I/O completion time and the backlog that may be accumulating.
+    #
+    # so
+    #
+    #   device#  dev  rissue rmerge rsect   rtime   wcomplete wmerge wsect wtime   io-inprog iotime weighted # ms
+    #   3    0   hda  446216 784926 9550688 4382310 424847 312726 5922052 19310380 0 3376340 23705160
+    #                 rissue rsect wissue wsect
+    #   3    1   hda1 35486 38030 38030 38030
+    #
+    #
+    def parse_diskstats(data)
+      parsed = {}
+      data.each_line do |line|
+        fields = line.chomp.split(' ')
+        while (fields[0] =~ /^\d/)
+          # ditch the leading numbers; no clue what they mean
+          fields.slice!(0, 1)
+        end
+
+        title,rest = fields.slice!(0, 1)
+        title.gsub(/\:/,'')
+        parsed[title] = fields.map { |x| x.to_i }    
+      end
+      parsed
+    end
+
+    def parse_proc_diskstats
+      data = File.read('/proc/diskstats')
+#      data = parse_diskstats(File.read('proc-diskstats'))      
+      # discard all zero entries to save space...
+      deleteme = data.keys.select do |k|  
+        data[k].inject(true) { |acc,element| acc && (element==0) }
+      end
+      deleteme.each { |k| data.delete(k) }
+
+      labels = ["read_issued", "read_merged", "read_sect", "read_time", "write_completed", "write_merged", "write_sect", "write_time", "io_inprog", "io_time", "weighted_io_time"]
+      data.keys.sort.each do |disk|
+        data[disk].zip(labels).each do |pair|
+          log_stat("count", "#{disk}.#{pair[1]}", pair[0])
+        end
+      end
+#      pp data
+    end
+
+
+    # Tick = 100Hz
+    # cpu: user_ticks user_nice_ticks system_ticks idle_ticks iowait_ticks irq_ticks softirq_ticks
+    # ctxt: context switch count
+    # btime: boot time in ticks
+    # processes: process/thread start count
+    # 
+    def parse_proc_stat
+      data = File.read('/proc/stat')
+#      data = File.read('stats')      
+      parsed = parse_proc_type_1(data)
+      parsed["intr"] = parsed["intr"].slice(0,1)
+
+      parsed.keys.grep(/^cpu/).sort.each do |key|
+        ["user_ticks", "user_nice_ticks", "system_ticks", "idle_ticks", "iowait_ticks", "irq_ticks", "softirq_ticks"].zip(parsed[key]).each do |pair|
+          log_stat("count", "#{key}.#{pair[0]}", pair[1])
+        end
+      end
+      ["btime", "ctxt", "intr", "softirq", "procs_blocked", "procs_running", "processes"].each do |stat|
+        log_stat("count", stat, parsed[stat].first)
+      end
+    end
+
+    def parse_proc_meminfo
+      data = File.read('/proc/meminfo')
+#      data = File.read('proc-meminfo')
+      parsed = parse_proc_type_1(data)
+      normalized = parsed.keys.inject({}) { |a, x| a[x.downcase.gsub(/[\(\)]/, "")] = parsed[x]; a}
+      
+      #
+      # These values are in kB
+      #
+      ['memtotal', 'memfree', 'active', 'inactive', 'activefile'].each do |label|
+        log_stat("count", label, normalized[label].first)
+      end
+    end
+
+    @@diskstats_test_data = <<EOL
+   1       0 ram0 0 0 0 0 0 0 0 0 0 0 0
+   1       1 ram1 0 0 0 0 0 0 0 0 0 0 0
+   1       2 ram2 0 0 0 0 0 0 0 0 0 0 0
+   1       3 ram3 0 0 0 0 0 0 0 0 0 0 0
+   1       4 ram4 0 0 0 0 0 0 0 0 0 0 0
+   1       5 ram5 0 0 0 0 0 0 0 0 0 0 0
+   1       6 ram6 0 0 0 0 0 0 0 0 0 0 0
+   1       7 ram7 0 0 0 0 0 0 0 0 0 0 0
+   1       8 ram8 0 0 0 0 0 0 0 0 0 0 0
+   1       9 ram9 0 0 0 0 0 0 0 0 0 0 0
+   1      10 ram10 0 0 0 0 0 0 0 0 0 0 0
+   1      11 ram11 0 0 0 0 0 0 0 0 0 0 0
+   1      12 ram12 0 0 0 0 0 0 0 0 0 0 0
+   1      13 ram13 0 0 0 0 0 0 0 0 0 0 0
+   1      14 ram14 0 0 0 0 0 0 0 0 0 0 0
+   1      15 ram15 0 0 0 0 0 0 0 0 0 0 0
+   7       0 loop0 0 0 0 0 0 0 0 0 0 0 0
+   7       1 loop1 0 0 0 0 0 0 0 0 0 0 0
+   7       2 loop2 0 0 0 0 0 0 0 0 0 0 0
+   7       3 loop3 0 0 0 0 0 0 0 0 0 0 0
+   7       4 loop4 0 0 0 0 0 0 0 0 0 0 0
+   7       5 loop5 0 0 0 0 0 0 0 0 0 0 0
+   7       6 loop6 0 0 0 0 0 0 0 0 0 0 0
+   7       7 loop7 0 0 0 0 0 0 0 0 0 0 0
+   8       0 sda 5110 12249 606822 297680 78704 77092 1246032 58460 0 57350 356120
+   8       1 sda1 5009 12218 605778 297520 78662 77092 1246032 58460 0 57280 355960
+   8       2 sda2 2 0 4 0 0 0 0 0 0 0 0
+   8       5 sda5 51 31 656 120 0 0 0 0 0 120 120
+   8      16 sdb 2887 3794 143235 5010 543 2034 20128 150 0 1290 5160
+ 147       0 drbd0 3172 0 47618 2150 1008 0 8064 110 0 108310 1041160
+EOL
+
+
+    def gen_stats
+      snap = {}
+      start_time =  Time.now()
+      snap["start_time"] = start_time.to_f
+      snap["disk"] = parse_proc_diskstats()
+      snap["proc"] = parse_proc_stat()
+      snap["mem"] = parse_proc_meminfo()
+      end_time = Time.now()
+      snap["end_time"] = end_time.to_f
+      #  puts "#{end_time - start_time}"
+      puts snap.to_json
+      $stdout.flush
+    end
+
+    def statdumper
+      header = { :host=>`hostname`, :starttime=>Time.now }
+      puts header.to_json
+      while (true) do
+        gen_stats
+        sleep 5
+      end
+    end
+
+#    # If invoked as a script, run the 
+#    if __FILE__ == $0
+#      begin
+#        statdumper
+#      end
+#    else
+#      # run in irb
+#    end
+
+  end
+
+end
+
+
+Logger::CLI.new(ARGV.dup).run
