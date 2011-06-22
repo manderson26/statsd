@@ -75,10 +75,10 @@ module Logger
     end
 
     def log_stat(command, *args)
-      if (!config[:dryrun])
+      if (!@config[:dryrun])
         client.send(command, *args)
       end
-      if (config[:verbose])
+      if (@config[:verbose])
         puts "#{command} #{args.join(' ')}"
       end
     end
