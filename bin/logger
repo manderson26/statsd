@@ -21,7 +21,7 @@ module Logger
     
     def initialize(argv)
       @argv = argv
-      @config = {:host => 'localhost', :port => 3344}
+      @config = {:host => 'localhost', :port => 3344, :hostname=> `hostname -s`}
     end
     
     def opt_parser
@@ -53,6 +53,10 @@ module Logger
         sleep(config[:interval])
       end
 
+    end
+
+    def hostname
+      @config[:hostname]
     end
 
     def host
@@ -149,7 +153,7 @@ module Logger
       labels = ["read_issued", "read_merged", "read_sect", "read_time", "write_completed", "write_merged", "write_sect", "write_time", "io_inprog", "io_time", "weighted_io_time"]
       data.keys.sort.each do |disk|
         data[disk].zip(labels).each do |pair|
-          log_stat("count", "#{disk}.#{pair[1]}", pair[0])
+          log_stat("count", "#{hostname}.#{disk}.#{pair[1]}", pair[0])
         end
       end
 #      pp data
@@ -170,11 +174,11 @@ module Logger
 
       parsed.keys.grep(/^cpu/).sort.each do |key|
         ["user_ticks", "user_nice_ticks", "system_ticks", "idle_ticks", "iowait_ticks", "irq_ticks", "softirq_ticks"].zip(parsed[key]).each do |pair|
-          log_stat("count", "#{key}.#{pair[0]}", pair[1])
+          log_stat("count", "#{hostname}.#{key}.#{pair[0]}", pair[1])
         end
       end
       ["btime", "ctxt", "intr", "softirq", "procs_blocked", "procs_running", "processes"].each do |stat|
-        log_stat("count", stat, parsed[stat].first)
+        log_stat("count", "#{hostname}.#{stat}", parsed[stat].first)
       end
     end
 
@@ -188,7 +192,7 @@ module Logger
       # These values are in kB
       #
       ['memtotal', 'memfree', 'active', 'inactive', 'activefile'].each do |label|
-        log_stat("count", label, normalized[label].first)
+        log_stat("count", "#{hostname}.#{label}, normalized[label].first)
       end
     end
 
