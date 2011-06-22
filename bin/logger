@@ -76,7 +76,7 @@ module Logger
 
     def log_stat(command, *args)
       if (!@config[:dryrun])
-        client.send(command, *args)
+        @client.send(command, *args)
       end
       if (@config[:verbose])
         puts "#{command} #{args.join(' ')}"
