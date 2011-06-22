@@ -22,7 +22,7 @@ module Logger
     def initialize(argv)
       @argv = argv
       @config = {:host => 'localhost', :port => 3344, :hostname=> (`hostname -s`).chomp,
-        :interval=>0, :verbose => false, :dryrun => false}
+        :interval=>15, :verbose => false, :dryrun => false}
     end
     
     def opt_parser
