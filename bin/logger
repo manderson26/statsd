@@ -21,7 +21,8 @@ module Logger
     
     def initialize(argv)
       @argv = argv
-      @config = {:host => 'localhost', :port => 3344, :hostname=> `hostname -s`}
+      @config = {:host => 'localhost', :port => 3344, :hostname=> `hostname -s`,
+        :verbose => false, :dryrun => false}
     end
     
     def opt_parser
@@ -37,6 +38,12 @@ module Logger
         o.on("-i", "--interval INTERVAL", "Sample interval in seconds") do |i|
           config[:interval] = i
         end
+        o.on("-d", "--dryrun", "Don't log stats") do |d|
+          config[:dryrun] = true
+        end
+        o.on("-v", "--verbose", " output to screen") do |v|
+          config[:verbose] = true
+        end
         o.on("-h", "--help", "print this message") do
           cli.usage!
         end
@@ -44,7 +51,7 @@ module Logger
     end
 
     def run
-      self.client = Statsd::Client.new(host)
+      @client = Statsd::Client.new(host)
       while(1) do
         parse_proc_stat
         parse_proc_meminfo
@@ -68,8 +75,12 @@ module Logger
     end
 
     def log_stat(command, *args)
-      client.send(command, *args)
-      puts "#{command} #{args.join(' ')}"
+      if (!config[:dryrun])
+        client.send(command, *args)
+      end
+      if (config[:verbose])
+        puts "#{command} #{args.join(' ')}"
+      end
     end
 
     def parse_proc_type_1(data)
@@ -192,7 +203,7 @@ module Logger
       # These values are in kB
       #
       ['memtotal', 'memfree', 'active', 'inactive', 'activefile'].each do |label|
-        log_stat("count", "#{hostname}.#{label}, normalized[label].first)
+        log_stat("count", "#{hostname}.#{label}", normalized[label].first)
       end
     end
 
@@ -228,30 +239,6 @@ module Logger
    8      16 sdb 2887 3794 143235 5010 543 2034 20128 150 0 1290 5160
  147       0 drbd0 3172 0 47618 2150 1008 0 8064 110 0 108310 1041160
 EOL
-
-
-    def gen_stats
-      snap = {}
-      start_time =  Time.now()
-      snap["start_time"] = start_time.to_f
-      snap["disk"] = parse_proc_diskstats()
-      snap["proc"] = parse_proc_stat()
-      snap["mem"] = parse_proc_meminfo()
-      end_time = Time.now()
-      snap["end_time"] = end_time.to_f
-      #  puts "#{end_time - start_time}"
-      puts snap.to_json
-      $stdout.flush
-    end
-
-    def statdumper
-      header = { :host=>`hostname`, :starttime=>Time.now }
-      puts header.to_json
-      while (true) do
-        gen_stats
-        sleep 5
-      end
-    end
 
 #    # If invoked as a script, run the 
 #    if __FILE__ == $0
