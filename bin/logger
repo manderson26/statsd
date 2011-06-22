@@ -21,8 +21,8 @@ module Logger
     
     def initialize(argv)
       @argv = argv
-      @config = {:host => 'localhost', :port => 3344, :hostname=> `hostname -s`,
-        :verbose => false, :dryrun => false}
+      @config = {:host => 'localhost', :port => 3344, :hostname=> (`hostname -s`).chomp,
+        :interval=>0, :verbose => false, :dryrun => false}
     end
     
     def opt_parser
@@ -51,17 +51,34 @@ module Logger
     end
 
     def run
-      @client = Statsd::Client.new(host)
+#      pp @argv
+      opt_parser.parse(@argv)
+#      pp @config
+      if (!dryrun)
+        @client = Statsd::Client.new(host)
+      end
       while(1) do
         parse_proc_stat
         parse_proc_meminfo
         parse_proc_diskstats
         # this isn't right; since collection of the above stats takes time we will run slow.
-        sleep(config[:interval])
+        exit(0) if (@config[:interval] == 0)
+        
+        puts "Sleeping for #{@config[:interval]}"
+        sleep(@config[:interval])
+
       end
 
     end
 
+    def dryrun
+      @config[:dryrun]
+    end
+    
+    def verbose
+      @config[:verbose]
+    end
+    
     def hostname
       @config[:hostname]
     end
@@ -153,8 +170,10 @@ module Logger
     end
 
     def parse_proc_diskstats
-      data = File.read('/proc/diskstats')
-#      data = parse_diskstats(File.read('proc-diskstats'))      
+      file = '/proc/diskstats'
+      puts "Parsing #{file}" if (@config[:verbose]) 
+      data = parse_diskstats(File.read(file))
+
       # discard all zero entries to save space...
       deleteme = data.keys.select do |k|  
         data[k].inject(true) { |acc,element| acc && (element==0) }
@@ -178,8 +197,10 @@ module Logger
     # processes: process/thread start count
     # 
     def parse_proc_stat
-      data = File.read('/proc/stat')
-#      data = File.read('stats')      
+      file = '/proc/stat'
+      puts "Parsing #{file}" if (@config[:verbose]) 
+      data = File.read(file)
+
       parsed = parse_proc_type_1(data)
       parsed["intr"] = parsed["intr"].slice(0,1)
 
@@ -194,8 +215,10 @@ module Logger
     end
 
     def parse_proc_meminfo
-      data = File.read('/proc/meminfo')
-#      data = File.read('proc-meminfo')
+      file = '/proc/meminfo'
+      puts "Parsing #{file}" if (@config[:verbose]) 
+      data = File.read(file)
+
       parsed = parse_proc_type_1(data)
       normalized = parsed.keys.inject({}) { |a, x| a[x.downcase.gsub(/[\(\)]/, "")] = parsed[x]; a}
       
