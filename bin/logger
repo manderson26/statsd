@@ -21,7 +21,8 @@ module Logger
     
     def initialize(argv)
       @argv = argv
-      @config = {:host => 'localhost', :port => 3344, :hostname=> (`hostname -s`).chomp,
+      @config = {:host => 'localhost', :port => 3344, 
+        :hostname=> (`hostname -s`).chomp,
         :interval=>15, :verbose => false, :dryrun => false}
     end
     
@@ -98,6 +99,7 @@ module Logger
       if (@config[:verbose])
         puts "#{command} #{args.join(' ')}"
       end
+
     end
 
     def parse_proc_type_1(data)
