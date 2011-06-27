@@ -32,6 +32,7 @@ module StatLogger
         :jiffies_to_ms => (1000.0/getUserHz()),
         :prefix => "system"
       }
+      @log_count = 0;
     end
     
     def opt_parser
@@ -57,12 +58,14 @@ module StatLogger
           cli.usage!
         end
       end
+      
+      puts "Starting logging to #{host}:#{port} @ #{config[:interval]} second intervals"
+      
+      @opt_parser
     end
 
     def run
-#      pp @argv
       opt_parser.parse(@argv)
-#      pp @config
       if (!dryrun)
         @client = Statsd::Client.new(host, port)
       end
@@ -72,10 +75,9 @@ module StatLogger
         parse_proc_diskstats
         # this isn't right; since collection of the above stats takes time we will run slow.
         return(0) if (@config[:interval] == 0)
-        
-        puts "Sleeping for #{@config[:interval]}"
+        puts "logged #{@log_count} items to #{host}:#{port}"
+        @log_count = 0
         sleep(@config[:interval])
-
       end
 
     end
@@ -113,6 +115,7 @@ module StatLogger
     end
 
     def log_stat(command, *args)
+      @log_count +=1
       if (!dryrun)
         @client.send(command, *args)
       end
@@ -191,6 +194,64 @@ module StatLogger
       parsed
     end
 
+    DataTypeAttributes = { 
+      "io.read_issued" => {:events=>1, :counter=>1},
+      "io.read_merged" => {:events=>1, :counter=>1}, 
+      "io.read_sect"   => {:events=>1, :counter=>1}, 
+      "io.read_time"   => {:jiffies=>1, :counter=>1}, 
+      "io.write_completed" => {:events=>1, :counter=>1},  
+      "io.write_merged"    => {:events=>1, :counter=>1},  
+      "io.write_sect"      => {:events=>1, :counter=>1},  
+      "io.write_time"      => {:jiffies=>1, :counter=>1}, 
+      "io.io_inprog"        => {:gauge=>1},
+      "io.io_time"          => {:jiffies=>1, :counter=>1},
+      "io.weighted_io_time" => {:jiffies=>1, :counter=>1},
+
+      "stats.user_ticks"      => {:jiffies=>1, :counter=>1}, 
+      "stats.user_nice_ticks" => {:jiffies=>1, :counter=>1}, 
+      "stats.system_ticks"    => {:jiffies=>1, :counter=>1},  
+      "stats.idle_ticks"      => {:jiffies=>1, :counter=>1}, 
+      "stats.iowait_ticks"    => {:jiffies=>1, :counter=>1},  
+      "stats.irq_ticks"       => {:jiffies=>1, :counter=>1},  
+      "stats.softirq_ticks"   => {:jiffies=>1, :counter=>1}, 
+
+      "stats.btime"   =>       {:jiffies=>1, :counter=>1}, 
+      "stats.ctxt"    =>       {:counter=>1}, 
+      "stats.intr_total"    => {:jiffies=>1, :counter=>1}, 
+      "stats.softirq" =>       {:jiffies=>1, :counter=>1}, 
+      "stats.procs_blocked" => {:gauge=>1}, 
+      "stats.procs_running" => {:gauge=>1}, 
+      "stats.processes"     => {:counter=>1}, 
+
+      "mem.memtotal" => {:gauge=>1},
+      "mem.memfree" => {:gauge=>1}, 
+      'mem.active' => {:gauge=>1}, 
+      'mem.inactive' => {:gauge=>1}, 
+      'mem.activefile' => {:gauge=>1},
+
+    } 
+
+    def check_property(name, prop)
+      if !DataTypeAttributes.has_key?(name)
+#        puts "cp 1 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}'"
+        false
+      else
+#        puts "cp 2 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}' #{DataTypeAttributes[name].has_key?(prop)}"
+        DataTypeAttributes[name].has_key?(prop)
+      end
+    end
+
+    def emit_stats(prop_name, full_label, value) 
+      if check_property(prop_name, :jiffies)
+        value = jiffies_to_ms(value)
+      end
+      if check_property(prop_name, :counter)
+        log_stat("counter", full_label, value)
+      else
+        log_stat("count", full_label, value)
+      end
+    end
+
     def parse_proc_diskstats
       file = '/proc/diskstats'
       puts "Parsing #{file}" if (@config[:verbose]) 
@@ -205,13 +266,10 @@ module StatLogger
       labels = ["read_issued", "read_merged", "read_sect", "read_time", "write_completed", "write_merged", "write_sect", "write_time", "io_inprog", "io_time", "weighted_io_time"]
       data.keys.sort.each do |disk|
         data[disk].zip(labels).each do |pair|
-          value = 
-            if pair[1] =~ /_time$/
-              jiffies_to_ms(pair[0])
-            else
-              pair[0]
-            end
-          log_stat("count", "#{prefix}.#{disk}.#{pair[1]}", value)
+          value, label = pair
+          prop_name = "io.#{label}"
+          full_label = "#{prefix}.io.#{disk}.#{label}"
+          emit_stats(prop_name, full_label, value)
         end
       end
       #      pp data
@@ -230,15 +288,25 @@ module StatLogger
       data = File.read(file)
 
       parsed = parse_proc_type_1(data)
-      parsed["intr"] = parsed["intr"].slice(0,1)
+      parsed["intr_total"] = parsed["intr"].slice(0,1)
 
-      parsed.keys.grep(/^cpu/).sort.each do |key|
-        ["user_ticks", "user_nice_ticks", "system_ticks", "idle_ticks", "iowait_ticks", "irq_ticks", "softirq_ticks"].zip(parsed[key]).each do |pair|
-          log_stat("count", "#{prefix}.#{key}.#{pair[0]}", jiffies_to_ms(pair[1]))
+      parsed.keys.grep(/^cpu/).sort.each do |cpu_id|
+        ["user_ticks", "user_nice_ticks", "system_ticks", "idle_ticks", "iowait_ticks", "irq_ticks", "softirq_ticks"].zip(parsed[cpu_id]).each do |label,value|
+          value = check_property("stats.#{label}", :jiffies) ?  jiffies_to_ms(value) : value
+          full_label =  "#{prefix}.stats.#{cpu_id}.#{label}"
+          if check_property("stats.#{label}", :counter)
+            log_stat("counter", full_label, value)
+          else
+            log_stat("count", full_label, value)
+          end
         end
       end
-      ["btime", "ctxt", "intr", "softirq", "procs_blocked", "procs_running", "processes"].each do |stat|
-        log_stat("count", "#{prefix}.#{stat}", jiffies_to_ms(parsed[stat].first))
+      ["btime", "ctxt", "intr_total", "softirq", "procs_blocked", "procs_running", "processes"].each do |stat|
+        full_label =  "#{prefix}.stats.#{stat}"    
+        prop_name  = "stats.#{stat}"
+        value = parsed[stat].first
+        
+        emit_stats(prop_name, full_label, value)
       end
     end
 
@@ -254,7 +322,13 @@ module StatLogger
       # These values are in kB
       #
       ['memtotal', 'memfree', 'active', 'inactive', 'activefile'].each do |label|
-        log_stat("count", "#{prefix}.#{label}", normalized[label].first)
+        prop_name  = "mem.#{label}"
+        full_label = "#{prefix}.mem.#{label}"
+
+        value = normalized[label].first
+
+        emit_stats(prop_name, full_label, value)
+
       end
     end
 
