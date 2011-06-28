@@ -48,7 +48,7 @@ module Statsd
     # @param [Integer] ms timing in milliseconds
     # @param [Integer] sample_rate sample rate, 1 for always
     def meter_reader(stat, v, sample_rate=1)
-      send_stats stat, ms, 'mr', sample_rate
+      send_stats stat, v, 'mr', sample_rate
     end
 
 

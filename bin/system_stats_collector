@@ -164,13 +164,11 @@ module StatLogger
     } 
 
     def check_property(name, prop)
-      if !DataTypeAttributes.has_key?(name)
-#        puts "cp 1 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}'"
-        false
-      else
-#        puts "cp 2 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}' #{DataTypeAttributes[name].has_key?(prop)}"
-        DataTypeAttributes[name].has_key?(prop)
-      end
+      DataTypeAttributes[name].has_key?(prop) rescue false
+    end
+
+    def get_property(name, prop)
+      DataTypeAttributes[name][prop] rescue nil
     end
 
     def emit_stats(prop_name, full_label, value) 
@@ -178,7 +176,7 @@ module StatLogger
         value = jiffies_to_ms(value)
       end
 
-      log_type =  check_property(prop_name, :log_type)
+      log_type =  get_property(prop_name, :log_type)
       log_stat(log_type, full_label, value)
     end
 
