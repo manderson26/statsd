@@ -117,7 +117,7 @@ module StatLogger
     def log_stat(command, *args)
       @log_count +=1
       if (!dryrun)
-        @client.send(command, *args)
+        @client.send(command.to_s, *args)
       end
       if (@config[:verbose])
         puts "#{command} #{args.join(' ')}"
