@@ -135,7 +135,7 @@ module StatLogger
       "io.write_merged"    => {:events=>1, :log_type=>:meter_reader},  
       "io.write_sect"      => {:events=>1, :log_type=>:meter_reader},  
       "io.write_time"      => {:jiffies=>1, :log_type=>:meter_reader}, 
-      "io.io_inprog"        => {:log_type=>:counter},
+      "io.io_inprog"        => {:log_type=>:count},
       "io.io_time"          => {:jiffies=>1, :log_type=>:meter_reader},
       "io.weighted_io_time" => {:jiffies=>1, :log_type=>:meter_reader},
 
@@ -151,15 +151,15 @@ module StatLogger
       "stats.ctxt"    =>       {:log_type=>:meter_reader}, 
       "stats.intr_total"    => {:jiffies=>1, :log_type=>:meter_reader}, 
       "stats.softirq" =>       {:jiffies=>1, :log_type=>:meter_reader}, 
-      "stats.procs_blocked" => {:log_type=>:counter}, 
-      "stats.procs_running" => {:log_type=>:counter}, 
+      "stats.procs_blocked" => {:log_type=>:count}, 
+      "stats.procs_running" => {:log_type=>:count}, 
       "stats.processes"     => {:log_type=>:meter_reader}, 
 
-      "mem.memtotal" => {:log_type=>:counter},
-      "mem.memfree" => {:log_type=>:counter}, 
-      'mem.active' => {:log_type=>:counter}, 
-      'mem.inactive' => {:log_type=>:counter}, 
-      'mem.activefile' => {:log_type=>:counter},
+      "mem.memtotal" => {:log_type=>:count},
+      "mem.memfree" => {:log_type=>:count}, 
+      'mem.active' => {:log_type=>:count}, 
+      'mem.inactive' => {:log_type=>:count}, 
+      'mem.activefile' => {:log_type=>:count},
 
     } 
 
@@ -289,13 +289,9 @@ module StatLogger
 
       parsed.keys.grep(/^cpu/).sort.each do |cpu_id|
         ["user_ticks", "user_nice_ticks", "system_ticks", "idle_ticks", "iowait_ticks", "irq_ticks", "softirq_ticks"].zip(parsed[cpu_id]).each do |label,value|
-          value = check_property("stats.#{label}", :jiffies) ?  jiffies_to_ms(value) : value
           full_label =  "#{prefix}.stats.#{cpu_id}.#{label}"
-          if check_property("stats.#{label}", :counter)
-            log_stat("counter", full_label, value)
-          else
-            log_stat("count", full_label, value)
-          end
+          prop_name = "stats.#{label}"
+          emit_stats(prop_name, full_label, value)
         end
       end
       ["btime", "ctxt", "intr_total", "softirq", "procs_blocked", "procs_running", "processes"].each do |stat|
@@ -321,11 +317,8 @@ module StatLogger
       ['memtotal', 'memfree', 'active', 'inactive', 'activefile'].each do |label|
         prop_name  = "mem.#{label}"
         full_label = "#{prefix}.mem.#{label}"
-
         value = normalized[label].first
-
         emit_stats(prop_name, full_label, value)
-
       end
     end
 
