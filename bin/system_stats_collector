@@ -125,6 +125,63 @@ module StatLogger
 
     end
 
+
+    DataTypeAttributes = { 
+      "io.read_issued" => {:events=>1, :log_type=>:meter_reader},
+      "io.read_merged" => {:events=>1, :log_type=>:meter_reader}, 
+      "io.read_sect"   => {:events=>1, :log_type=>:meter_reader}, 
+      "io.read_time"   => {:jiffies=>1, :log_type=>:meter_reader}, 
+      "io.write_completed" => {:events=>1, :log_type=>:meter_reader},  
+      "io.write_merged"    => {:events=>1, :log_type=>:meter_reader},  
+      "io.write_sect"      => {:events=>1, :log_type=>:meter_reader},  
+      "io.write_time"      => {:jiffies=>1, :log_type=>:meter_reader}, 
+      "io.io_inprog"        => {:log_type=>:counter},
+      "io.io_time"          => {:jiffies=>1, :log_type=>:meter_reader},
+      "io.weighted_io_time" => {:jiffies=>1, :log_type=>:meter_reader},
+
+      "stats.user_ticks"      => {:jiffies=>1, :log_type=>:meter_reader}, 
+      "stats.user_nice_ticks" => {:jiffies=>1, :log_type=>:meter_reader}, 
+      "stats.system_ticks"    => {:jiffies=>1, :log_type=>:meter_reader},  
+      "stats.idle_ticks"      => {:jiffies=>1, :log_type=>:meter_reader}, 
+      "stats.iowait_ticks"    => {:jiffies=>1, :log_type=>:meter_reader},  
+      "stats.irq_ticks"       => {:jiffies=>1, :log_type=>:meter_reader},  
+      "stats.softirq_ticks"   => {:jiffies=>1, :log_type=>:meter_reader}, 
+
+      "stats.btime"   =>       {:jiffies=>1, :log_type=>:meter_reader}, 
+      "stats.ctxt"    =>       {:log_type=>:meter_reader}, 
+      "stats.intr_total"    => {:jiffies=>1, :log_type=>:meter_reader}, 
+      "stats.softirq" =>       {:jiffies=>1, :log_type=>:meter_reader}, 
+      "stats.procs_blocked" => {:log_type=>:counter}, 
+      "stats.procs_running" => {:log_type=>:counter}, 
+      "stats.processes"     => {:log_type=>:meter_reader}, 
+
+      "mem.memtotal" => {:log_type=>:counter},
+      "mem.memfree" => {:log_type=>:counter}, 
+      'mem.active' => {:log_type=>:counter}, 
+      'mem.inactive' => {:log_type=>:counter}, 
+      'mem.activefile' => {:log_type=>:counter},
+
+    } 
+
+    def check_property(name, prop)
+      if !DataTypeAttributes.has_key?(name)
+#        puts "cp 1 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}'"
+        false
+      else
+#        puts "cp 2 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}' #{DataTypeAttributes[name].has_key?(prop)}"
+        DataTypeAttributes[name].has_key?(prop)
+      end
+    end
+
+    def emit_stats(prop_name, full_label, value) 
+      if check_property(prop_name, :jiffies)
+        value = jiffies_to_ms(value)
+      end
+
+      log_type =  check_property(prop_name, :log_type)
+      log_stat(log_type, full_label, value)
+    end
+
     def parse_proc_type_1(data)
       #  puts "Starting"
       parsed = {}
@@ -192,64 +249,6 @@ module StatLogger
         parsed[title] = fields.map { |x| x.to_i }    
       end
       parsed
-    end
-
-    DataTypeAttributes = { 
-      "io.read_issued" => {:events=>1, :counter=>1},
-      "io.read_merged" => {:events=>1, :counter=>1}, 
-      "io.read_sect"   => {:events=>1, :counter=>1}, 
-      "io.read_time"   => {:jiffies=>1, :counter=>1}, 
-      "io.write_completed" => {:events=>1, :counter=>1},  
-      "io.write_merged"    => {:events=>1, :counter=>1},  
-      "io.write_sect"      => {:events=>1, :counter=>1},  
-      "io.write_time"      => {:jiffies=>1, :counter=>1}, 
-      "io.io_inprog"        => {:gauge=>1},
-      "io.io_time"          => {:jiffies=>1, :counter=>1},
-      "io.weighted_io_time" => {:jiffies=>1, :counter=>1},
-
-      "stats.user_ticks"      => {:jiffies=>1, :counter=>1}, 
-      "stats.user_nice_ticks" => {:jiffies=>1, :counter=>1}, 
-      "stats.system_ticks"    => {:jiffies=>1, :counter=>1},  
-      "stats.idle_ticks"      => {:jiffies=>1, :counter=>1}, 
-      "stats.iowait_ticks"    => {:jiffies=>1, :counter=>1},  
-      "stats.irq_ticks"       => {:jiffies=>1, :counter=>1},  
-      "stats.softirq_ticks"   => {:jiffies=>1, :counter=>1}, 
-
-      "stats.btime"   =>       {:jiffies=>1, :counter=>1}, 
-      "stats.ctxt"    =>       {:counter=>1}, 
-      "stats.intr_total"    => {:jiffies=>1, :counter=>1}, 
-      "stats.softirq" =>       {:jiffies=>1, :counter=>1}, 
-      "stats.procs_blocked" => {:gauge=>1}, 
-      "stats.procs_running" => {:gauge=>1}, 
-      "stats.processes"     => {:counter=>1}, 
-
-      "mem.memtotal" => {:gauge=>1},
-      "mem.memfree" => {:gauge=>1}, 
-      'mem.active' => {:gauge=>1}, 
-      'mem.inactive' => {:gauge=>1}, 
-      'mem.activefile' => {:gauge=>1},
-
-    } 
-
-    def check_property(name, prop)
-      if !DataTypeAttributes.has_key?(name)
-#        puts "cp 1 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}'"
-        false
-      else
-#        puts "cp 2 '#{name}' '#{prop}' '#{DataTypeAttributes[name]}' #{DataTypeAttributes[name].has_key?(prop)}"
-        DataTypeAttributes[name].has_key?(prop)
-      end
-    end
-
-    def emit_stats(prop_name, full_label, value) 
-      if check_property(prop_name, :jiffies)
-        value = jiffies_to_ms(value)
-      end
-      if check_property(prop_name, :counter)
-        log_stat("counter", full_label, value)
-      else
-        log_stat("count", full_label, value)
-      end
     end
 
     def parse_proc_diskstats

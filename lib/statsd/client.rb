@@ -44,6 +44,14 @@ module Statsd
       send_stats stat, ms, 'ms', sample_rate
     end
 
+    # @param [String] stat stat name
+    # @param [Integer] ms timing in milliseconds
+    # @param [Integer] sample_rate sample rate, 1 for always
+    def meter_reader(stat, v, sample_rate=1)
+      send_stats stat, ms, 'mr', sample_rate
+    end
+
+
     def time(stat, sample_rate=1)
       start = Time.now
       result = yield
