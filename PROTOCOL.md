@@ -102,8 +102,8 @@ histogram representing request time are reported in one message:
 
 
 # References #
-ABNF: RFC 5234, <http://tools.ietf.org/html/rfc5234>
-Coda Hale's Metrics: <https://github.com/codahale/metrics>
-Etsy's statsd: <https://github.com/etsy/statsd>
+* ABNF: RFC 5234, <http://tools.ietf.org/html/rfc5234>
+* Coda Hale's Metrics: <https://github.com/codahale/metrics>
+* Etsy's statsd: <https://github.com/etsy/statsd>
 
 
