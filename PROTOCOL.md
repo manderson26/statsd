@@ -1,4 +1,4 @@
-# Opscode Stats Protocol #
+# Stats Hero Protocol #
 
 Specification of the protocol used by this client.
 
