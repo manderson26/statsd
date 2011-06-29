@@ -27,12 +27,12 @@ An increment-only counter for which you are periodically reporting a
 value maintained by some external process. For example, CPU usage is
 reported by Linux as a counter of "jiffies" since system boot.
 
-## GAGUE ##
+## GAUGE ##
 An instantaneous reading of a global value for which aggregate
 statistics are not desired or useful. No aggregation or summarization is
 done on these values, and the last write "wins." For example, the depth
-of a global work queue could be represented as a gague. The depth of a
-per-host queue could only be represented as a gague when each gague
+of a global work queue could be represented as a gauge. The depth of a
+per-host queue could only be represented as a gauge when each gauge
 metric is recorded with a unique key.
 
 ## HISTOGRAM ##
