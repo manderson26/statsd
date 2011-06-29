@@ -38,21 +38,6 @@ describe Statsd::Client do
     end
   end
 
-  describe "#decrement" do
-    it "should format the message according to the statsd spec" do
-      @client.decrement('foobar')
-      @client.socket.recv.should == ['foobar:-1|c']
-    end
-
-    describe "with a sample rate" do
-      before { class << @client; def rand; 0; end; end } # ensure delivery
-      it "should format the message according to the statsd spec" do
-        @client.decrement('foobar', 0.5)
-        @client.socket.recv.should == ['foobar:-1|c|@0.5']
-      end
-    end
-  end
-
   describe "#timing" do
     it "should format the message according to the statsd spec" do
       @client.timing('foobar', 500)
@@ -124,11 +109,6 @@ describe Statsd::Client do
     it "should add namespace to increment" do
       @client.increment('foobar')
       @client.socket.recv.should == ['service.foobar:1|c']
-    end
-
-    it "should add namespace to decrement" do
-      @client.decrement('foobar')
-      @client.socket.recv.should == ['service.foobar:-1|c']
     end
 
     it "should add namespace to timing" do

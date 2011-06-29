@@ -18,26 +18,24 @@ module Statsd
       @host, @port = host, port
     end
 
-    # @param [String] stat stat name
+    # @param [String] key (relative) metric key
     # @param [Integer] sample_rate sample rate, 1 for always
-    def increment(key, sample_rate=nil)
+    def mark(key, sample_rate=nil)
       count(key, 1, sample_rate)
     end
 
-    # @param [String] stat stat name
-    # @param [Integer] sample_rate sample rate, 1 for always
-    def decrement(key, sample_rate=nil)
-      count(key, -1, sample_rate)
-    end
+    alias :increment :mark
 
-    # @param [String] stat stat name
+    # @param [String] key (relative) metric key
     # @param [Integer] count count
     # @param [Integer] sample_rate sample rate, 1 for always
-    def count(key, count, sample_rate=nil)
+    def histogram(key, count, sample_rate=nil)
       send_stats("c", key, count, sample_rate)
     end
 
-    # @param [String] stat stat name
+    alias :count :histogram
+
+    # @param [String] key (relative) metric key
     # @param [Integer] ms timing in milliseconds
     # @param [Integer] sample_rate sample rate, 1 for always
     def timing(key, ms, sample_rate=nil)
