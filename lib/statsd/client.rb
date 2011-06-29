@@ -20,42 +20,42 @@ module Statsd
 
     # @param [String] stat stat name
     # @param [Integer] sample_rate sample rate, 1 for always
-    def increment(stat, sample_rate=1)
-      count stat, 1, sample_rate
+    def increment(key, sample_rate=nil)
+      count(key, 1, sample_rate)
     end
 
     # @param [String] stat stat name
     # @param [Integer] sample_rate sample rate, 1 for always
-    def decrement(stat, sample_rate=1)
-      count stat, -1, sample_rate
+    def decrement(key, sample_rate=nil)
+      count(key, -1, sample_rate)
     end
 
     # @param [String] stat stat name
     # @param [Integer] count count
     # @param [Integer] sample_rate sample rate, 1 for always
-    def count(stat, count, sample_rate=1)
-      send_stats stat, count, 'c', sample_rate
+    def count(key, count, sample_rate=nil)
+      send_stats("c", key, count, sample_rate)
     end
 
     # @param [String] stat stat name
     # @param [Integer] ms timing in milliseconds
     # @param [Integer] sample_rate sample rate, 1 for always
-    def timing(stat, ms, sample_rate=1)
-      send_stats stat, ms, 'ms', sample_rate
+    def timing(key, ms, sample_rate=nil)
+      send_stats('ms', key, ms, sample_rate)
     end
 
     # @param [String] stat stat name
     # @param [Integer] ms timing in milliseconds
     # @param [Integer] sample_rate sample rate, 1 for always
-    def meter_reader(stat, v, sample_rate=1)
-      send_stats stat, v, 'mr', sample_rate
+    def meter_reader(key, v, sample_rate=nil)
+      send_stats('mr', key, v, sample_rate)
     end
 
 
-    def time(stat, sample_rate=1)
+    def time(key, sample_rate=nil)
       start = Time.now
       result = yield
-      timing(stat, ((Time.now - start) * 1000).round, sample_rate)
+      timing(key, ((Time.now - start) * 1000).round, sample_rate)
       result
     end
 
@@ -65,12 +65,16 @@ module Statsd
       yield unless sample_rate < 1 and rand > sample_rate
     end
 
-    def send_stats(stat, delta, type, sample_rate)
+    def send_stats(type, key, value, sample_rate=nil)
+      sample_rate = 1 if sample_rate.nil? # shim the old interface for now.
       prefix = "#{@namespace}." unless @namespace.nil?
-      sampled(sample_rate) { socket.send("#{prefix}#{stat}:#{delta}|#{type}#{'|@' << sample_rate.to_s if sample_rate < 1}", 0, @host, @port) }
+      sampled(sample_rate) { socket.send("#{prefix}#{key}:#{value}|#{type}#{'|@' << sample_rate.to_s if sample_rate < 1}", 0, @host, @port) }
     end
 
-    def socket; @socket ||= UDPSocket.new end
+    def socket
+      @socket ||= UDPSocket.new
+    end
+
   end
 end
 
