@@ -108,7 +108,7 @@ module StatLogger
     
     def jiffies_to_ms(x)
       if (x.respond_to?(:to_f))
-        (x.to_f) * @config[:jiffies_to_ms]
+        ((x.to_f) * @config[:jiffies_to_ms]).to_i
       else
         0.0/0.0
       end
