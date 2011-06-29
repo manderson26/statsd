@@ -104,16 +104,16 @@ Options:#{opt_parser}
 Examples:
 
 # Increment a value
->  statsd-client application.requests increment
+>  statsd-client increment application.requests
 
 # Decrement a value
->  statsd-client application.active_background_jobs decrement
+>  statsd-client decrement application.active_background_jobs
 
 # Report an instantaneous value
->  statsd-client application.number_of_sweet_graphs 9000
+>  statsd-client count application.number_of_sweet_graphs 9000
 
 # Report a timing measurement
->  statsd-client application.upstream_service_response_time timing 50
+>  statsd-client timing application.upstream_service_response_time 50
 
 HELP
       exit(1)
