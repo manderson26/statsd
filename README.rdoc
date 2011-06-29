@@ -1,6 +1,10 @@
 = statsd
 
-A Ruby statsd client (https://github.com/etsy/statsd)
+A Ruby stats client. Forked from Rein Henrichs'
+implementation(https://github.com/reinh/statsd) of Etsy's
+statsd(https://github.com/etsy/statsd). This client is no longer
+compatible with Etsy's statsd. It is designed to be used with Opscode's
+estatsd(https://github.com/opscode/estatsd)
 
 = Testing
 
