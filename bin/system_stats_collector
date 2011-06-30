@@ -11,7 +11,7 @@ end
 
 require 'rubygems'
 require 'json'
-#require 'tmpfile'
+require 'fileutils'
 require 'tmpdir'
 
 require 'optparse'
@@ -339,20 +339,27 @@ PROG
     
     def getUserHz()
       tmpdir = Dir.mktmpdir
-      puts "Tmpdir #{tmpdir}"
-      Dir.chdir(tmpdir) do |path|
-        
-        filebase = "getuserhz"
-        filesrc = "getuserhz.c"
-        File.open(filesrc, "w") do |f|
-          f.write(ProbeProgram)
+      begin
+        puts "Tmpdir #{tmpdir}"
+        Dir.chdir(tmpdir) do |path|
+          
+          filebase = "getuserhz"
+          filesrc = "getuserhz.c"
+          File.open(filesrc, "w") do |f|
+            f.write(ProbeProgram)
         end
-        cmd = "gcc -o #{filebase} #{filesrc} -lrt"
-        `#{cmd}`
-        out = `./#{filebase}`
-        userHz = out.chomp
-        return userHz.to_i
+          cmd = "gcc -o #{filebase} #{filesrc} -lrt"
+          `#{cmd}`
+          out = `./#{filebase}`
+          userHz = out.chomp
+          return userHz.to_i
+        end
+      rescue
+        
+      ensure
+        FileUtils.rm_rf(tmpdir)
       end
+      
     end
 
   end
