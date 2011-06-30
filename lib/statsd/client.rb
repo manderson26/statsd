@@ -15,13 +15,14 @@ module Statsd
     # @param [String] host your statsd host
     # @param [Integer] port your statsd port
     def initialize(host, port=8125)
+      @namespace = nil
       @host, @port = host, port
     end
 
     # @param [String] key (relative) metric key
     # @param [Integer] sample_rate sample rate, 1 for always
     def mark(key, sample_rate=nil)
-      count(key, 1, sample_rate)
+      send_stats(:meter, key, 1, sample_rate)
     end
 
     alias :increment :mark
@@ -30,7 +31,7 @@ module Statsd
     # @param [Integer] count count
     # @param [Integer] sample_rate sample rate, 1 for always
     def histogram(key, count, sample_rate=nil)
-      send_stats("c", key, count, sample_rate)
+      send_stats(:histogram, key, count, sample_rate)
     end
 
     alias :count :histogram
@@ -39,14 +40,14 @@ module Statsd
     # @param [Integer] ms timing in milliseconds
     # @param [Integer] sample_rate sample rate, 1 for always
     def timing(key, ms, sample_rate=nil)
-      send_stats('ms', key, ms, sample_rate)
+      send_stats(:histogram, key, ms, sample_rate)
     end
 
     # @param [String] stat stat name
     # @param [Integer] ms timing in milliseconds
     # @param [Integer] sample_rate sample rate, 1 for always
     def meter_reader(key, v, sample_rate=nil)
-      send_stats('mr', key, v, sample_rate)
+      send_stats(:meter_reader, key, v, sample_rate)
     end
 
 
@@ -59,14 +60,11 @@ module Statsd
 
     private
 
-    def sampled(sample_rate)
-      yield unless sample_rate < 1 and rand > sample_rate
-    end
-
     def send_stats(type, key, value, sample_rate=nil)
-      sample_rate = 1 if sample_rate.nil? # shim the old interface for now.
       prefix = "#{@namespace}." unless @namespace.nil?
-      sampled(sample_rate) { socket.send("#{prefix}#{key}:#{value}|#{type}#{'|@' << sample_rate.to_s if sample_rate < 1}", 0, @host, @port) }
+      #"#{prefix}#{key}:#{value}|#{type}#{'|@' << sample_rate.to_s if sample_rate < 1}"
+      message = Message.new.add_metric(type, "#{prefix}#{key}", value, sample_rate)
+      socket.send(message.to_s, 0, @host, @port) unless message.content_length == 0
     end
 
     def socket

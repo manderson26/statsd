@@ -36,7 +36,7 @@ module Statsd
         @body << "#{key}:#{value}|#{type_str}|@#{sample_rate}\n"
       end
 
-      true
+      self
     end
 
     def to_s
