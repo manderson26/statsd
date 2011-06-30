@@ -1,5 +1,7 @@
 require 'socket'
 
+require 'statsd/message'
+
 module Statsd
   # = Statsd: A Statsd client (https://github.com/etsy/statsd)
   #
