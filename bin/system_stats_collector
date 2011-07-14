@@ -165,8 +165,8 @@ module StatLogger
       'mem.inactive' => {:log_type=>:count}, 
       'mem.activefile' => {:log_type=>:count},
 
-      "tcplocal.count" => {:log_type=>:count},
-      "tcpremote.count" => {:log_type=>:count}
+      "tcplocal" => {:log_type=>:count},
+      "tcpremote" => {:log_type=>:count}
     } 
 
     def check_property(name, prop)
@@ -452,15 +452,15 @@ module StatLogger
       # Emit the total stats
       local_results.each_pair do |local_port, by_status|
         by_status.each_pair do |tcp_status, count|
-          full_label = "#{prefix}.tcplocal.#{local_port}.#{tcp_status}.count"
-          prop_name = "tcplocal.count"
+          full_label = "#{prefix}.tcplocal.#{local_port}.#{tcp_status}"
+          prop_name = "tcplocal"
           emit_stats(prop_name, full_label, count)
         end
       end
       remote_results.each_pair do |local_port, by_status|
         by_status.each_pair do |tcp_status, count|
-          full_label = "#{prefix}.tcpremote.#{local_port}.#{tcp_status}.count"
-          prop_name = "tcpremote.count"
+          full_label = "#{prefix}.tcpremote.#{local_port}.#{tcp_status}"
+          prop_name = "tcpremote"
           emit_stats(prop_name, full_label, count)
         end
       end
