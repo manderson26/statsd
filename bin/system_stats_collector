@@ -438,6 +438,17 @@ module StatLogger
         end
       end
 
+      # If a server is LISTENing, record zeroes for any statuses that don't have data, to ensure averages will be correct
+      local_results.each_pair do |local_port, by_status|
+        if by_status.has_key?('LISTEN')
+          @@tcp_statuses.each_value do |status|
+            if !by_status.has_key?(status)
+              by_status[status] = 0
+            end
+          end
+        end
+      end
+
       # Emit the total stats
       local_results.each_pair do |local_port, by_status|
         by_status.each_pair do |tcp_status, count|
