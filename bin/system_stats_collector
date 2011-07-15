@@ -355,7 +355,7 @@ module StatLogger
 
     def parse_netstat
       puts "Running netstat -atn" if @config[:verbose]
-      netstat_output = `netstat -a`
+      netstat_output = `netstat -atn`
 
       # Extract the local port, remote port and address from /proc/net/tcp and calculate totals
       local_results = {}
