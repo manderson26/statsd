@@ -74,7 +74,7 @@ module StatLogger
         parse_proc_stat
         parse_proc_meminfo
         parse_proc_diskstats
-        parse_proc_tcpstats
+        parse_netstat
         return(0) if (@config[:interval] == 0)
         puts "logged #{@log_count} items to #{host}:#{port}"
         @log_count = 0
@@ -194,33 +194,6 @@ module StatLogger
         title,rest = fields.slice!(0, 1)
         title.gsub!(/\:/,'')
         parsed[title] = fields.map { |x| x=~/^\d*$/ ? x.to_i : x }    
-      end
-      parsed
-    end
-
-    def parse_proc_type_2(data, fixed_length_fields)
-      parsed = []
-      handled_header_line = false
-      data.each_line do |line|
-        # Iterate through the defined fields and grab the value from the line for each
-        line_hash = fixed_length_fields.inject({}) do |result, field|
-          # field[0] is the key
-          # field[1] is the range of the substring
-          val = line[field[1]]
-          result[field[0]] = val.strip
-          result
-        end
-        if handled_header_line
-          parsed << line_hash
-        else
-          # Verify that the names are what we expect
-          line_hash.each_pair do |key,val|
-            if key != val
-              raise "Header line wrong: field #{key} (range #{fixed_length_fields[key]}) in the first line has value '#{val}'"
-            end
-          end
-          handled_header_line = true
-        end
       end
       parsed
     end
@@ -355,18 +328,18 @@ module StatLogger
       end
     end
 
-    @@tcp_statuses = {
-      1 => 'ESTABLISHED',
-      2 => 'SYN_SENT',
-      3 => 'SYN_RECV',
-      4 => 'FIN_WAIT1',
-      5 => 'FIN_WAIT2',
-      6 => 'TIME_WAIT',
-      7 => 'CLOSE',
-      8 => 'CLOSE_WAIT',
-      9 => 'LAST_ACK',
-      10 => 'LISTEN',
-      11 => 'CLOSING'
+    @@tcp_statuses = %w{
+        ESTABLISHED
+        SYN_SENT
+        SYN_RECV
+        FIN_WAIT1
+        FIN_WAIT2
+        TIME_WAIT
+        CLOSE
+        CLOSE_WAIT
+        LAST_ACK
+        LISTEN
+        CLOSING
     }
 
     def ephemeral_port_range
@@ -380,58 +353,29 @@ module StatLogger
       @ephemeral_port_range
     end
 
-    #
-    # /proc/net/tcp format
-    #   sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode                                                     
-    #    0: 00000000:1355 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 131030 1 ebb8c500 300 0 0 2 -1                            
-    #    1: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 5666 1 c113ea00 300 0 0 2 -1                              
-    #
-    # This file represents all connections the OS is presently tracking.
-    # This is a fixed-width format, with fields identified in the first line.  
-    # 
-    # local_address and rem_address are the ip and port of each end of the connection.  Both are in hex.
-    # st is the status, in hex.  The possible values are defined in a Linux header, and are copied here to
-    #    @@tcp_statuses.
-    # tx_queue and rx_queue are the size of the send and receive buffers.
-    #
-    # At present, we only log the number of connections for each (port,status) pair.
-    #
-    @@proc_net_tcp_fields = {
-      'sl' => 0..3,
-      'local_address' => 6..18,
-      'rem_address' => 20..32,
-      'st' => 34..35,
-      'tx_queue' => 37..44,
-      'rx_queue' => 46..53,
-      'tr' => 55..56,
-      'tm->when' => 58..65,
-      'retrnsmt' => 67..74,
-      'uid' => 76..80,
-      'timeout' => 82..89,
-      'inode' => 91..-1
-    }
-
-    def parse_proc_tcpstats
-      file = '/proc/net/tcp'
-      puts "Parsing #{file}" if (@config[:verbose])
-      data = File.read(file)
+    def parse_netstat
+      puts "Running netstat -atn" if @config[:verbose]
+      netstat_output = `netstat -a`
 
       # Extract the local port, remote port and address from /proc/net/tcp and calculate totals
-      parsed = parse_proc_type_2(data, @@proc_net_tcp_fields)
       local_results = {}
       remote_results = {}
-      parsed.each do |row|
-        local_port = row['local_address'].split(':')[1].hex
-        remote_port = row['rem_address'].split(':')[1].hex
-        tcp_status = @@tcp_statuses[row['st'].hex]
+      netstat_output.lines.each do |line|
+        fields = line.split(/\s+/)
+        next if fields[0] != 'tcp'
+        local_address = fields[3]
+        remote_address = fields[4]
+        local_port = local_address.split(':')[1].to_i
+        remote_port = remote_address.split(':')[1].to_i
+        tcp_status = fields[5]
 
         # If a connection is ephemeral, we ignore it
-        if local_port != 0 && !(local_port >= ephemeral_port_range[0] && local_port <= ephemeral_port_range[1])
+        if local_port != '*' && !(local_port >= ephemeral_port_range[0] && local_port <= ephemeral_port_range[1])
           local_results[local_port] ||= {}
           local_results[local_port][tcp_status] ||= 0
           local_results[local_port][tcp_status] += 1
         end
-        if remote_port != 0 && !(remote_port >= ephemeral_port_range[0] && remote_port <= ephemeral_port_range[1])
+        if remote_port != '*' && !(remote_port >= ephemeral_port_range[0] && remote_port <= ephemeral_port_range[1])
           remote_results[remote_port] ||= {}
           remote_results[remote_port][tcp_status] ||= 0
           remote_results[remote_port][tcp_status] += 1
@@ -441,7 +385,7 @@ module StatLogger
       # If a server is LISTENing, record zeroes for any statuses that don't have data, to ensure averages will be correct
       local_results.each_pair do |local_port, by_status|
         if by_status.has_key?('LISTEN')
-          @@tcp_statuses.each_value do |status|
+          @@tcp_statuses.each do |status|
             if !by_status.has_key?(status)
               by_status[status] = 0
             end
