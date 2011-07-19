@@ -367,6 +367,7 @@ module StatLogger
           local_results[local_port][tcp_status] ||= 0
           local_results[local_port][tcp_status] += 1
         end
+
 #        if remote_port != '*' && !(remote_port >= ephemeral_port_range[0] && remote_port <= ephemeral_port_range[1])
 #          remote_results[remote_port] ||= {}
 #          remote_results[remote_port][tcp_status] ||= 0
