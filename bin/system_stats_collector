@@ -423,7 +423,7 @@ PROG
     
     
     def getUserHz()
-      tmpdir = Dir.mktmpdir
+      tmpdir = Dir.mktmpdir('system_stats')
       begin
         puts "Tmpdir #{tmpdir}"
         Dir.chdir(tmpdir) do |path|
